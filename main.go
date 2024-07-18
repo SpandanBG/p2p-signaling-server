@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ type group struct {
 	banner []byte
 }
 
+var store_mutex = sync.Mutex{}
 var store = map[string]*group{}
 
 func main() {
@@ -51,7 +53,10 @@ func register_socket(r *gin.Engine) {
 
 		id := uuid.New().String()
 		self := &group{uuid: id, host: conn}
+
+		store_mutex.Lock()
 		store[id] = self
+		store_mutex.Unlock()
 
 		conn.SetCloseHandler(clear_self(self))
 		conn.WriteMessage(ws.TextMessage, []byte(id))
@@ -106,6 +111,9 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 
 func clear_self(self *group) func(code int, text string) error {
 	return func(code int, text string) error {
+		store_mutex.Lock()
+		defer store_mutex.Unlock()
+
 		for _, other := range store {
 			if other.uuid == self.uuid {
 				continue
