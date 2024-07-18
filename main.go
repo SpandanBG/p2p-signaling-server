@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -13,6 +14,9 @@ import (
 var upgrader = ws.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 type group struct {
@@ -87,7 +91,7 @@ func handle_msg(msg []byte, conn *ws.Conn, id string) (exit bool) {
 			if self, ok := store[id]; ok {
 				self.peers = append(self.peers, other.host)
 				conn.WriteMessage(ws.TextMessage, []byte("added to self"))
-        other.host.WriteMessage(ws.TextMessage, self.banner)
+				other.host.WriteMessage(ws.TextMessage, self.banner)
 			}
 		}
 	case "banner": // cmd: `banner <info>` where `info` is the details to be
