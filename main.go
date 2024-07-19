@@ -28,7 +28,7 @@ type peer struct {
 type group struct {
 	uuid   string
 	host   *ws.Conn
-	peers  []*peer
+	peers  map[string]*peer
 	banner []byte
 }
 
@@ -52,7 +52,7 @@ func register_socket(r *gin.Engine) {
 		defer conn.Close()
 
 		id := uuid.New().String()
-		self := &group{uuid: id, host: conn}
+		self := &group{uuid: id, host: conn, peers: map[string]*peer{}}
 
 		store_mutex.Lock()
 		store[id] = self
@@ -84,12 +84,17 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 	switch cmd {
 	case "join": // cmd: `join <id>` where `id` is that of the other to join
 		if other, ok := store[rest]; ok {
-			other.peers = append(other.peers, &peer{uuid: self.uuid, conn: self.host})
-			self.host.WriteMessage(ws.TextMessage, other.banner)
+			if _, found := other.peers[self.uuid]; !found {
+				other.peers[self.uuid] = &peer{uuid: self.uuid, conn: self.host}
+				self.host.WriteMessage(ws.TextMessage, other.banner)
+				other.host.WriteMessage(ws.TextMessage, []byte(fmt.Sprintf("%s Joined", self.uuid)))
+			} else {
+				self.host.WriteMessage(ws.TextMessage, []byte("already a member"))
+			}
 		} else {
 			self.host.WriteMessage(ws.TextMessage, []byte("no group found"))
 		}
-	case "write": // cmd: `write <msg>` where `msg` is sent to the all the
+	case "publish": // cmd: `publish <msg>` where `msg` is sent to the all the
 		// peers in your group
 		for _, peer := range self.peers {
 			peer.conn.WriteMessage(ws.TextMessage, []byte(rest))
@@ -97,13 +102,24 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 	case "add": // cmd: `add <id>` where `id` is that of the connection that
 		// is to be added to your group
 		if other, ok := store[rest]; ok {
-			self.peers = append(self.peers, &peer{uuid: other.uuid, conn: other.host})
-			self.host.WriteMessage(ws.TextMessage, []byte("added to self"))
-			other.host.WriteMessage(ws.TextMessage, self.banner)
+			if _, found := self.peers[other.uuid]; !found {
+				self.peers[other.uuid] = &peer{uuid: other.uuid, conn: other.host}
+				self.host.WriteMessage(ws.TextMessage, []byte("added to self"))
+				other.host.WriteMessage(ws.TextMessage, self.banner)
+			} else {
+				self.host.WriteMessage(ws.TextMessage, []byte("already added"))
+			}
 		}
 	case "banner": // cmd: `banner <info>` where `info` is the details to be
 		// set on the banner which will be writen to the first joinee to your group
 		self.banner = []byte(rest)
+	case "write":
+		id, msg, _ := strings.Cut(rest, " ")
+		for _, peer := range self.peers {
+			if peer.uuid == id {
+				peer.conn.WriteMessage(ws.TextMessage, []byte(msg))
+			}
+		}
 	}
 
 	return false
@@ -119,17 +135,7 @@ func clear_self(self *group) func(code int, text string) error {
 				continue
 			}
 
-			// TODO optimize later
-			var updated_peers []*peer
-			for _, peer := range other.peers {
-				if peer.uuid == self.uuid {
-					continue
-				}
-
-				updated_peers = append(updated_peers, peer)
-			}
-
-			other.peers = updated_peers
+			delete(other.peers, self.uuid)
 		}
 
 		delete(store, self.uuid)
