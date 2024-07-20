@@ -87,7 +87,7 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 			if _, found := other.peers[self.uuid]; !found {
 				other.peers[self.uuid] = &peer{uuid: self.uuid, conn: self.host}
 				self.host.WriteMessage(ws.TextMessage, other.banner)
-				other.host.WriteMessage(ws.TextMessage, []byte(fmt.Sprintf("%s Joined", self.uuid)))
+				other.host.WriteMessage(ws.TextMessage, []byte(fmt.Sprintf("joined %s", self.uuid)))
 			} else {
 				self.host.WriteMessage(ws.TextMessage, []byte("already a member"))
 			}
@@ -96,8 +96,9 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 		}
 	case "publish": // cmd: `publish <msg>` where `msg` is sent to the all the
 		// peers in your group
+		full_msg := []byte(self.uuid + " " + rest)
 		for _, peer := range self.peers {
-			peer.conn.WriteMessage(ws.TextMessage, []byte(rest))
+			peer.conn.WriteMessage(ws.TextMessage, full_msg)
 		}
 	case "add": // cmd: `add <id>` where `id` is that of the connection that
 		// is to be added to your group
@@ -115,9 +116,10 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 		self.banner = []byte(rest)
 	case "write":
 		id, msg, _ := strings.Cut(rest, " ")
+		full_msg := []byte(self.uuid + " " + msg)
 		for _, peer := range self.peers {
 			if peer.uuid == id {
-				peer.conn.WriteMessage(ws.TextMessage, []byte(msg))
+				peer.conn.WriteMessage(ws.TextMessage, full_msg)
 			}
 		}
 	}
