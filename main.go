@@ -122,6 +122,9 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 				peer.conn.WriteMessage(ws.TextMessage, full_msg)
 			}
 		}
+    case "inherit": // cmd: `inherit <uuid>`
+      // check if self belongs in the uuid group
+      // get all unquie peers in the self's group
 	}
 
 	return false
