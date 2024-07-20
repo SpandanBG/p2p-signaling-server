@@ -39,7 +39,8 @@ func main() {
 	r := gin.Default()
 
 	register_socket(r)
-	r.Run()
+	r.RunTLS("0.0.0.0:5512", "./certs/cert.pem", "./certs/key.pem")
+	// r.Run(":5512")
 }
 
 func register_socket(r *gin.Engine) {
