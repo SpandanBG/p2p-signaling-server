@@ -39,8 +39,8 @@ func main() {
 	r := gin.Default()
 
 	register_socket(r)
-	r.RunTLS("0.0.0.0:5512", "./certs/cert.pem", "./certs/key.pem")
-	// r.Run(":5512")
+	//r.RunTLS("0.0.0.0:5512", "./certs/cert.pem", "./certs/key.pem")
+	r.Run()
 }
 
 func register_socket(r *gin.Engine) {
@@ -84,6 +84,9 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 	cmd, rest, _ := strings.Cut(string(msg), " ")
 	switch cmd {
 	case "join": // cmd: `join <id>` where `id` is that of the other to join
+		if self.uuid == rest {
+			return false
+		}
 		if other, ok := store[rest]; ok {
 			if _, found := other.peers[self.uuid]; !found {
 				other.peers[self.uuid] = &peer{uuid: self.uuid, conn: self.host}
@@ -103,6 +106,9 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 		}
 	case "add": // cmd: `add <id>` where `id` is that of the connection that
 		// is to be added to your group
+		if self.uuid == rest {
+			return false
+		}
 		if other, ok := store[rest]; ok {
 			if _, found := self.peers[other.uuid]; !found {
 				self.peers[other.uuid] = &peer{uuid: other.uuid, conn: other.host}
@@ -123,9 +129,9 @@ func handle_msg(msg []byte, self *group) (exit bool) {
 				peer.conn.WriteMessage(ws.TextMessage, full_msg)
 			}
 		}
-    case "inherit": // cmd: `inherit <uuid>`
-      // check if self belongs in the uuid group
-      // get all unquie peers in the self's group
+	case "inherit": // cmd: `inherit <uuid>`
+		// check if self belongs in the uuid group
+		// get all unquie peers in the self's group
 	}
 
 	return false
